@@ -1,15 +1,48 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:height="108dp"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <group
-        android:scaleX="2.5"
-        android:scaleY="2.5"
-        android:translateX="24"
-        android:translateY="24">
-        <path
-            android:fillColor="#FFFFFFFF"
-            android:pathData="M12,3v10.55c-0.59,-0.34 -1.27,-0.55 -2,-0.55c-2.21,0 -4,1.79 -4,4s1.79,4 4,4s4,-1.79 4,-4V7h4V3H12z"/>
-    </group>
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+  <group android:scaleX="0.7027778"
+      android:scaleY="0.7027778"
+      android:translateX="76.08889"
+      android:translateY="76.08889">
+    <path
+        android:pathData="M0,0h512v512h-512z"
+        android:fillColor="#FFFFFF"/>
+    <path
+        android:pathData="M256,256m-170,0a170,170 0,1 1,340 0a170,170 0,1 1,-340 0">
+      <aapt:attr name="android:fillColor">
+        <gradient
+            android:startX="86"
+            android:startY="86"
+            android:endX="426"
+            android:endY="426"
+            android:type="linear">
+          <item android:offset="0" android:color="#FF22E565"/>
+          <item android:offset="0.5" android:color="#FF1DB954"/>
+          <item android:offset="1" android:color="#FF128C3D"/>
+        </gradient>
+      </aapt:attr>
+    </path>
+    <path
+        android:pathData="M143.99,223.53C202.1,183.24 293.59,173.62 358.81,200.95"
+        android:strokeWidth="26"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M163.72,267.71C215.28,232.13 290.87,224.18 348.7,248.27"
+        android:strokeWidth="24"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M183.44,311.89C226.47,281.22 290.12,274.53 338.59,295.58"
+        android:strokeWidth="22"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+  </group>
 </vector>

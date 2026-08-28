@@ -85,7 +85,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data
-                    android:scheme="meld"
+                    android:scheme="spectify"
                     android:host="spotify"
                     android:pathPrefix="/callback" />
             </intent-filter>

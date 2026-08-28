@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
+import com.google.protobuf.gradle.*
 
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
@@ -17,25 +18,34 @@ val debugKeyPassword = System.getenv("METROLIST_DEBUG_KEY_PASSWORD")?.takeIf { i
 val persistentDebugKeystoreFile = file("persistent-debug.keystore")
 val workflowDebugKeystoreFile = debugKeystorePathOverride?.let(::file)
 
+kotlin {
+    jvmToolchain(21)
+    compilerOptions {
+        freeCompilerArgs.add("-Xannotation-default-target=param-property")
+        jvmTarget.set(JvmTarget.JVM_21)
+    }
+}
+
 plugins {
     id("com.android.application")
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
+    id("com.google.protobuf")
 }
 
 android {
     namespace = "com.metrolist.music"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
-        applicationId = applicationIdOverride ?: "com.meld.app"
+        applicationId = applicationIdOverride ?: "com.naufal.capellini"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 24
-        versionName = "0.8.8"
-        resValue("string", "app_name", appNameOverride ?: "Meld")
+        targetSdk = 37
+        versionCode = 1
+        versionName = "1.0"
+        resValue("string", "app_name", appNameOverride ?: "Spectify")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -52,7 +62,7 @@ android {
         // and a fine-grained PAT with issues:write scoped to that repo only.
         // Both must be present at build time for reporting to be active at runtime.
         val crashRepo = localProperties.getProperty("CRASH_REPORT_REPO")
-            ?: System.getenv("CRASH_REPORT_REPO") ?: "francescograzioso/Meld"
+            ?: System.getenv("CRASH_REPORT_REPO") ?: "francescograzioso/Spectify"
         val crashToken = localProperties.getProperty("CRASH_REPORT_TOKEN")
             ?: System.getenv("CRASH_REPORT_TOKEN") ?: ""
         buildConfigField("String", "CRASH_REPORT_REPO", "\"$crashRepo\"")
@@ -131,7 +141,7 @@ android {
             }
             isDebuggable = true
             if (appNameOverride == null) {
-                resValue("string", "app_name", "Meld Debug")
+                resValue("string", "app_name", "Spectify Debug")
             }
             signingConfig =
                 if (workflowDebugKeystoreFile != null) {
@@ -151,14 +161,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
-    }
-
-    kotlin {
-        jvmToolchain(21)
-        compilerOptions {
-            freeCompilerArgs.add("-Xannotation-default-target=param-property")
-            jvmTarget.set(JvmTarget.JVM_21)
-        }
     }
 
     buildFeatures {
@@ -181,6 +183,14 @@ android {
 
     androidResources {
         generateLocaleConfig = true
+    }
+
+    sourceSets {
+        getByName("main") {
+            proto {
+                srcDir("../metroproto")
+            }
+        }
     }
 
     packaging {
@@ -217,13 +227,31 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 // Android provides org.json as a platform API (/apex/com.android.art/javalib/core-libart.jar).
-// The standalone org.json:json artefact bundles an older Apache Harmony copy of JSONArray that
+// The standalone org.json:JSON artifact bundles an older Apache Harmony copy of JSONArray that
 // contains an internal `myArrayList` field absent from the platform class.  Without obfuscation
 // R8 inlines against this internal field; at runtime the platform class is resolved instead,
-// producing a NoSuchFieldError.  Excluding the artefact globally ensures only the platform
+// producing a NoSuchFieldError.  Excluding the artifact globally ensures only the platform
 // class is ever referenced.
 configurations.configureEach {
     exclude(group = "org.json", module = "json")
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:4.34.1"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                id("java") {
+                    option("lite")
+                }
+                id("kotlin") {
+                    option("lite")
+                }
+            }
+        }
+    }
 }
 
 dependencies {

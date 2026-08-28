@@ -768,7 +768,7 @@ fun DiscordSettings(
                             Material3SettingsItem(
                                 title = { Text(stringResource(R.string.discord_button_2)) },
                                 description = {
-                                    Text(button2Text.ifEmpty { "Visit Meld" })
+                                    Text(button2Text.ifEmpty { "Visit Spectify" })
                                 },
                                 trailingContent = {
                                     Switch(
@@ -1040,18 +1040,18 @@ fun RichPresence(
                 val resolvedButton2 =
                     if (song != null) {
                         DiscordRPC.resolveVariables(
-                            button2Text.ifEmpty { "Visit Meld" },
+                            button2Text.ifEmpty { "Visit Spectify" },
                             song,
                         )
                     } else {
-                        button2Text.ifEmpty { "Visit Meld" }
+                        button2Text.ifEmpty { "Visit Spectify" }
                     }
                 val resolvedButton2Url =
                     if (song != null) {
-                        button2Url.ifEmpty { "https://github.com/FrancescoGrazioso/Meld" }
+                        button2Url.ifEmpty { "https://github.com/FrancescoGrazioso/Spectify" }
                             .let { DiscordRPC.resolveVariables(it, song) }
                     } else {
-                        button2Url.ifEmpty { "https://github.com/FrancescoGrazioso/Meld" }
+                        button2Url.ifEmpty { "https://github.com/FrancescoGrazioso/Spectify" }
                     }
                 OutlinedButton(
                     onClick = {

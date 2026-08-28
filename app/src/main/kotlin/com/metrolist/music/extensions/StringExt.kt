@@ -43,3 +43,21 @@ fun String.toInetSocketAddress(): InetSocketAddress {
     val (host, port) = split(":")
     return createUnresolved(host, port.toInt())
 }
+
+/**
+ * Cleans song titles by removing common extraneous tags like (Remastered),
+ * [Live], feat., etc. to improve search matching.
+ */
+fun String.cleanSongTitle(): String {
+    return this
+        .replace(Regex("(?i)\\s*\\(.*?remaster.*?\\)"), "")
+        .replace(Regex("(?i)\\s*\\[.*?remaster.*?\\]"), "")
+        .replace(Regex("(?i)\\s*\\(.*?live.*?\\)"), "")
+        .replace(Regex("(?i)\\s*\\[.*?live.*?\\]"), "")
+        .replace(Regex("(?i)\\s*feat\\..*"), "")
+        .replace(Regex("(?i)\\s*ft\\..*"), "")
+        .replace(Regex("(?i)\\s*\\(with .*?\\)"), "")
+        .replace(Regex("(?i)\\s*-\\s*Single$"), "")
+        .replace(Regex("(?i)\\s*-\\s*EP$"), "")
+        .trim()
+}

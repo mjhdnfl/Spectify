@@ -39,7 +39,7 @@ object Updater {
     private var cachedAllReleases: List<ReleaseInfo> = emptyList()
     
     private const val CHECK_INTERVAL_MILLIS = 2 * 60 * 60 * 1000L // 2 hours
-    private const val GITHUB_API_BASE = "https://api.github.com/repos/FrancescoGrazioso/Meld"
+    private const val GITHUB_API_BASE = "https://api.github.com/repos/FrancescoGrazioso/Spectify"
 
     /**
      * Compares two version strings.
@@ -96,8 +96,8 @@ object Updater {
             
             // Parse architecture and variant from filename
             val (arch, variant) = when {
-                name == "Meld.apk" -> "universal" to "foss"
-                name == "Meld-with-Google-Cast.apk" -> "universal" to "gms"
+                name == "Spectify.apk" -> "universal" to "foss"
+                name == "Spectify-with-Google-Cast.apk" -> "universal" to "gms"
                 name.startsWith("app-") && name.endsWith("-release.apk") -> {
                     val arch = name.removePrefix("app-").removeSuffix("-release.apk")
                     arch to "foss"

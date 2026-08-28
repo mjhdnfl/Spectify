@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.hilt) apply (false)
     alias(libs.plugins.kotlin.ksp) apply (false)
     alias(libs.plugins.kotlin.serialization) apply false
+    id("com.google.protobuf") version "0.10.0" apply false
 }
 
 buildscript {
@@ -14,6 +15,7 @@ buildscript {
     dependencies {
         classpath(libs.gradle)
         classpath(kotlin("gradle-plugin", libs.versions.kotlin.get()))
+        classpath("com.google.protobuf:protobuf-gradle-plugin:0.10.0")
     }
 }
 

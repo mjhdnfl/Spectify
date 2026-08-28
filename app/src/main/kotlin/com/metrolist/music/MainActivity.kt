@@ -47,22 +47,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialogDefaults
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.contentColorFor
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -860,6 +845,17 @@ class MainActivity : ComponentActivity() {
                 }
                 val snackbarHostState = remember { SnackbarHostState() }
 
+                val playbackErrorMessage by playerConnection?.playbackErrorMessage?.collectAsState() ?: remember { mutableStateOf(null) }
+
+                LaunchedEffect(playbackErrorMessage) {
+                    playbackErrorMessage?.let { msg ->
+                        snackbarHostState.showSnackbar(
+                            message = msg,
+                            duration = SnackbarDuration.Long
+                        )
+                    }
+                }
+
                 LaunchedEffect(Unit) {
                     if (pendingIntent != null) {
                         handleRecognitionIntent(pendingIntent!!, navController)
@@ -894,6 +890,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                 var showAccountDialog by remember { mutableStateOf(false) }
+                var showOverflowMenu by remember { mutableStateOf(false) }
 
                 val pauseListenHistory by rememberPreference(PauseListenHistoryKey, defaultValue = false)
                 val eventCount by database.eventCount().collectAsState(initial = 0)
@@ -929,11 +926,48 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 Row {
                                     TopAppBar(
-                                        title = {
-                                            Text(
-                                                text = currentTitleRes?.let { stringResource(it) } ?: "",
-                                                style = MaterialTheme.typography.titleLarge,
-                                            )
+                                        title = { },
+                                        navigationIcon = {
+                                            Box {
+                                                IconButton(onClick = { showOverflowMenu = true }) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.more_vert),
+                                                        contentDescription = "Menu"
+                                                    )
+                                                }
+                                                DropdownMenu(
+                                                    expanded = showOverflowMenu,
+                                                    onDismissRequest = { showOverflowMenu = false },
+                                                    shape = RoundedCornerShape(28.dp)
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.settings)) },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                painter = painterResource(R.drawable.settings),
+                                                                contentDescription = null
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showOverflowMenu = false
+                                                            navController.navigate("settings")
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.about)) },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                painter = painterResource(R.drawable.info),
+                                                                contentDescription = null
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showOverflowMenu = false
+                                                            navController.navigate("settings/about")
+                                                        }
+                                                    )
+                                                }
+                                            }
                                         },
                                         actions = {
                                             if (showHistoryButton) {

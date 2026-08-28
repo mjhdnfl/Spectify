@@ -11,6 +11,7 @@ import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.pages.SearchSummaryPage
 import com.metrolist.music.db.MusicDatabase
 import com.metrolist.music.db.entities.SpotifyMatchEntity
+import com.metrolist.music.extensions.cleanSongTitle
 import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.models.MediaMetadata
 import com.metrolist.spotify.Spotify
@@ -43,7 +44,7 @@ class SpotifyYouTubeMapper(
      *
      * Resolution order: in-memory cache → Room DB → YouTube search.
      */
-    suspend fun mapToYouTube(track: SpotifyTrack): MediaMetadata? = withContext(Dispatchers.IO) {
+    suspend fun mapToYouTube(track: SpotifyTrack): MediaMetadata = withContext(Dispatchers.IO) {
         // 1. In-memory LRU cache (zero I/O)
         memoryCache[track.id]?.let { mem ->
             Timber.d("Spotify match memory hit: ${track.name} -> ${mem.youtubeId}")
@@ -60,14 +61,18 @@ class SpotifyYouTubeMapper(
             return@withContext buildMediaMetadata(cached.youtubeId, track, cached.title, cached.artist)
         }
 
-        // 3. YouTube search + fuzzy match
-        val query = SpotifyMapper.buildSearchQuery(track)
-        Timber.d("Searching YouTube for Spotify track: $query")
-
-        // Anonymous search: this is a background match, not a user-initiated
-        // search, so it must not be recorded in the user's YouTube search history.
-        val searchResult = YouTube.searchSummary(query, incognito = true).getOrNull() ?: return@withContext null
-        val bestMatch = findBestMatch(track, searchResult)
+        // 3. YouTube search + Multi-Engine Fallback pipeline
+        var bestMatch = tryResolve(track, ResolveMode.STRICT)
+        
+        if (bestMatch == null) {
+            Timber.i("Strict resolution failed for '${track.name}', trying ADVANCED (cleaned title)")
+            bestMatch = tryResolve(track, ResolveMode.ADVANCED)
+        }
+        
+        if (bestMatch == null) {
+            Timber.i("Advanced resolution failed for '${track.name}', trying STANDARD (YouTube Video)")
+            bestMatch = tryResolve(track, ResolveMode.STANDARD)
+        }
 
         if (bestMatch != null) {
             database.upsertSpotifyMatch(
@@ -75,7 +80,7 @@ class SpotifyYouTubeMapper(
                     spotifyId = track.id,
                     youtubeId = bestMatch.id,
                     title = bestMatch.title,
-                    artist = bestMatch.artists.firstOrNull()?.name ?: "",
+                    artist = bestMatch.artistName,
                     matchScore = bestMatch.score,
                 )
             )
@@ -92,8 +97,89 @@ class SpotifyYouTubeMapper(
             )
         }
 
-        Timber.w("No YouTube match found for Spotify track: ${track.name} by ${track.artists.firstOrNull()?.name}")
-        null
+        val msg = "Could not find a YouTube match for Spotify track: ${track.name}"
+        Timber.e("CRITICAL: $msg")
+        throw IllegalStateException(msg)
+    }
+
+    private enum class ResolveMode { STRICT, ADVANCED, STANDARD }
+
+    private suspend fun tryResolve(track: SpotifyTrack, mode: ResolveMode): MatchCandidate? {
+        val query = when (mode) {
+            ResolveMode.STRICT -> SpotifyMapper.buildSearchQuery(track)
+            ResolveMode.ADVANCED -> {
+                val cleanedTitle = track.name.cleanSongTitle()
+                val artist = track.artists.firstOrNull()?.name ?: ""
+                if (artist.isNotEmpty()) "$artist - $cleanedTitle" else cleanedTitle
+            }
+            ResolveMode.STANDARD -> {
+                val artist = track.artists.firstOrNull()?.name ?: ""
+                if (artist.isNotEmpty()) "$artist ${track.name} audio" else track.name
+            }
+        }
+
+        Timber.d("Mapper Engine [${mode.name}]: Searching with query: $query")
+
+        return try {
+            val searchResult = YouTube.searchSummary(query, incognito = true).getOrNull() ?: return null
+            findBestMatch(track, searchResult)
+        } catch (e: Exception) {
+            Timber.tag("ResolverError").e(e, "Exception in Mapper Engine [${mode.name}] for query: $query")
+            null
+        }
+    }
+
+    private fun findBestMatch(
+        spotifyTrack: SpotifyTrack,
+        searchResult: SearchSummaryPage
+    ): MatchCandidate? {
+        val spotifyArtist = spotifyTrack.artists.firstOrNull()?.name ?: ""
+
+        // Pre-compute normalization and bigrams for the Spotify side once
+        val precomputed = SpotifyMapper.precompute(
+            title = spotifyTrack.name,
+            artist = spotifyArtist,
+            durationMs = spotifyTrack.durationMs,
+        )
+
+        val candidates = searchResult.summaries
+            .flatMap { it.items }
+            .filterIsInstance<SongItem>()
+
+        var bestCandidate: MatchCandidate? = null
+        var bestAdjusted = Double.NEGATIVE_INFINITY
+        val spotifyTitleLower = spotifyTrack.name.lowercase()
+        val earlyExitThreshold = SpotifyMapper.earlyExitThreshold()
+
+        for (song in candidates) {
+            val score = SpotifyMapper.matchScorePrecomputed(
+                precomputed = precomputed,
+                candidateTitle = song.title,
+                candidateArtist = song.artists.firstOrNull()?.name ?: "",
+                candidateDurationSec = song.duration,
+            )
+            val adjusted = score - variantPenalty(spotifyTitleLower, song.title)
+
+            if (adjusted > bestAdjusted) {
+                bestAdjusted = adjusted
+                bestCandidate = MatchCandidate(
+                    id = song.id,
+                    title = song.title,
+                    artistName = song.artists.firstOrNull()?.name ?: "",
+                    artists = song.artists.map { MediaMetadata.Artist(id = it.id, name = it.name) },
+                    duration = song.duration ?: -1,
+                    thumbnailUrl = song.thumbnail,
+                    albumId = song.album?.id,
+                    albumTitle = song.album?.name,
+                    explicit = song.explicit,
+                    score = score,
+                )
+                // Early exit: if this match is excellent, skip remaining candidates
+                if (adjusted >= earlyExitThreshold) break
+            }
+        }
+
+        return bestCandidate?.takeIf { it.score >= MIN_MATCH_THRESHOLD }
     }
 
     /**
@@ -128,74 +214,12 @@ class SpotifyYouTubeMapper(
      * ResolvingDataSource to resolve the actual stream URL.
      * Returns null if no match was found (track will be skipped).
      */
-    suspend fun resolveToMediaItem(track: SpotifyTrack): androidx.media3.common.MediaItem? {
+    suspend fun resolveToMediaItem(track: SpotifyTrack): androidx.media3.common.MediaItem {
         Timber.d("SpotifyMapper: resolving '${track.name}' by ${track.artists.firstOrNull()?.name}")
         val metadata = mapToYouTube(track)
-        if (metadata == null) {
-            Timber.w("SpotifyMapper: FAILED to resolve '${track.name}' - no YouTube match")
-            return null
-        }
         Timber.d("SpotifyMapper: resolved '${track.name}' -> YouTube ID: ${metadata.id}")
         SpotifyMetadataRegistry.register(metadata.id, track)
         return metadata.toMediaItem()
-    }
-
-    private fun findBestMatch(
-        spotifyTrack: SpotifyTrack,
-        searchResult: SearchSummaryPage,
-    ): MatchCandidate? {
-        val spotifyArtist = spotifyTrack.artists.firstOrNull()?.name ?: ""
-
-        // Pre-compute normalization and bigrams for the Spotify side once
-        val precomputed = SpotifyMapper.precompute(
-            title = spotifyTrack.name,
-            artist = spotifyArtist,
-            durationMs = spotifyTrack.durationMs,
-        )
-
-        val songs = searchResult.summaries
-            .flatMap { it.items }
-            .filterIsInstance<SongItem>()
-
-        var bestCandidate: MatchCandidate? = null
-        // Ranking score = raw match score minus a penalty for non-studio variants
-        // (live/MV/karaoke/…). Kept separate from the stored `score` so the final
-        // MIN_MATCH_THRESHOLD check and DB record use the true match quality — a
-        // track that ONLY exists as a live version still resolves rather than being
-        // skipped, it's just deprioritised when a studio version is also present.
-        var bestAdjusted = Double.NEGATIVE_INFINITY
-        val spotifyTitleLower = spotifyTrack.name.lowercase()
-        val earlyExitThreshold = SpotifyMapper.earlyExitThreshold()
-
-        for (song in songs) {
-            val score = SpotifyMapper.matchScorePrecomputed(
-                precomputed = precomputed,
-                candidateTitle = song.title,
-                candidateArtist = song.artists.firstOrNull()?.name ?: "",
-                candidateDurationSec = song.duration,
-            )
-            val adjusted = score - variantPenalty(spotifyTitleLower, song.title)
-
-            if (adjusted > bestAdjusted) {
-                bestAdjusted = adjusted
-                bestCandidate = MatchCandidate(
-                    id = song.id,
-                    title = song.title,
-                    artistName = song.artists.firstOrNull()?.name ?: "",
-                    artists = song.artists.map { MediaMetadata.Artist(id = it.id, name = it.name) },
-                    duration = song.duration ?: -1,
-                    thumbnailUrl = song.thumbnail,
-                    albumId = song.album?.id,
-                    albumTitle = song.album?.name,
-                    explicit = song.explicit,
-                    score = score,
-                )
-                // Early exit: if this match is excellent, skip remaining candidates
-                if (adjusted >= earlyExitThreshold) break
-            }
-        }
-
-        return bestCandidate?.takeIf { it.score >= MIN_MATCH_THRESHOLD }
     }
 
     private fun buildMediaMetadata(

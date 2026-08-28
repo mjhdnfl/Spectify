@@ -386,29 +386,6 @@ fun AccountSettings(
 
             Spacer(Modifier.height(4.dp))
 
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.settings)) },
-                icon = {
-                    BadgedBox(
-                        badge = {
-                            if (BuildConfig.UPDATER_AVAILABLE && latestVersionName != BuildConfig.VERSION_NAME) {
-                                Badge()
-                            }
-                        }
-                    ) {
-                        Icon(painterResource(R.drawable.settings), contentDescription = null)
-                    }
-                },
-                onClick = {
-                    onClose()
-                    navController.navigate("settings")
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-            )
-
-            Spacer(Modifier.height(4.dp))
 
             if (BuildConfig.UPDATER_AVAILABLE && latestVersionName != BuildConfig.VERSION_NAME) {
                 val releaseInfo = Updater.getCachedLatestRelease()

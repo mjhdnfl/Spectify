@@ -171,6 +171,7 @@ class PlayerConnection(
     val canSkipNext = MutableStateFlow(true)
 
     val error = MutableStateFlow<PlaybackException?>(null)
+    val playbackErrorMessage = service.playbackErrorMessage
     val isMuted = service.isMuted
 
     val waitingForNetworkConnection = service.waitingForNetworkConnection

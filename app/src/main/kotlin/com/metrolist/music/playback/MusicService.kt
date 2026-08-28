@@ -407,6 +407,13 @@ class MusicService :
     private val playerInitialized = MutableStateFlow(false)
     val isPlayerReady: kotlinx.coroutines.flow.StateFlow<Boolean> = playerInitialized.asStateFlow()
 
+    private val _playbackErrorMessage = MutableStateFlow<String?>(null)
+    val playbackErrorMessage = _playbackErrorMessage.asStateFlow()
+
+    fun setPlaybackError(message: String?) {
+        _playbackErrorMessage.value = message
+    }
+
     // Expose active player flow for UI/Connection updates
     private val _playerFlow = MutableStateFlow<ExoPlayer?>(null)
     val playerFlow = _playerFlow.asStateFlow()
@@ -1558,12 +1565,17 @@ class MusicService :
             // audio already plays.
 
             val initialStatus =
-                withContext(Dispatchers.IO) {
-                    queue
-                        .getInitialStatus()
-                        .filterExplicit(dataStore.get(HideExplicitKey, false))
-                        .filterVideoSongs(dataStore.get(HideVideoSongsKey, false))
+                try {
+                    withContext(Dispatchers.IO) {
+                        queue.getInitialStatus()
+                    }
+                } catch (e: Exception) {
+                    _playbackErrorMessage.value = e.message ?: "Failed to resolve track"
+                    return@launch
                 }
+                    .filterExplicit(dataStore.get(HideExplicitKey, false))
+                    .filterVideoSongs(dataStore.get(HideVideoSongsKey, false))
+
             if (queue.preloadItem != null && player.playbackState == STATE_IDLE) return@launch
             if (initialStatus.title != null) {
                 queueTitle = initialStatus.title
@@ -2295,6 +2307,7 @@ class MusicService :
         mediaItem: MediaItem?,
         reason: Int,
     ) {
+        _playbackErrorMessage.value = null
         // Save previous episode position if it was an episode
         previousEpisodeId?.let { episodeId ->
             if (previousEpisodePosition > 0) {
@@ -2798,7 +2811,7 @@ class MusicService :
      * Detects a corrupt-container source error that no amount of retrying will fix
      * (e.g. MatroskaExtractor's recurring `ArrayIndexOutOfBoundsException` on a
      * partial WebM stream). The only sensible response is to skip the track —
-     * see github.com/FrancescoGrazioso/Meld/issues/94. Suppresses the crash
+     * see github.com/FrancescoGrazioso/Spectify/issues/94. Suppresses the crash
      * report since this is an upstream Media3 bug, not our own.
      */
     private fun isMalformedContainerError(error: PlaybackException): Boolean {
@@ -2940,6 +2953,11 @@ class MusicService :
             isMediaCodecError(error) ||
             isMalformedContainerError(error) ||
             isAudioSinkBufferError(error)
+        
+        _playbackErrorMessage.value = error.message ?: error.errorCodeName
+
+        _playbackErrorMessage.value = error.message ?: error.errorCodeName
+        
         if (!isRecoverableYouTubeError) {
             reportException(error)
         }
@@ -3977,6 +3995,7 @@ class MusicService :
                         Result.failure(java.net.SocketTimeoutException("Stream resolution timed out"))
                     }
                 }.getOrElse { throwable ->
+                    _playbackErrorMessage.value = throwable.message ?: "Stream resolution failed"
                     /*
                      * Everything thrown from here travels through Media3's Loader, and Loader
                      * only preserves an error code when the exception is a DataSourceException
@@ -4937,7 +4956,7 @@ class MusicService :
         private const val MIN_GAIN_MB = -1500 // Minimum gain in millibels (-15 dB)
 
         private const val TAG = "MusicService"
-        private const val PRECACHE_TAG = "MeldPreCache"
+        private const val PRECACHE_TAG = "SpectifyPreCache"
 
         @Volatile
         var isRunning = false

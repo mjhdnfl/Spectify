@@ -28,6 +28,16 @@ include(":shazamkit")
 include(":spotify")
 include(":paxsenix")
 
+project(":innertube").projectDir = file("modules/innertube")
+project(":kugou").projectDir = file("modules/kugou")
+project(":lrclib").projectDir = file("modules/lrclib")
+project(":kizzy").projectDir = file("modules/kizzy")
+project(":lastfm").projectDir = file("modules/lastfm")
+project(":betterlyrics").projectDir = file("modules/betterlyrics")
+project(":shazamkit").projectDir = file("modules/shazamkit")
+project(":spotify").projectDir = file("modules/spotify")
+project(":paxsenix").projectDir = file("modules/paxsenix")
+
 // Use a local copy of NewPipe Extractor by uncommenting the lines below.
 // We assume, that Metrolist and NewPipe Extractor have the same parent directory.
 // If this is not the case, please change the path in includeBuild().
